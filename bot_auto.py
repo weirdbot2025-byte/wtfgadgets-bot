@@ -1,46 +1,27 @@
-# bot_auto.py — post automatici affidabili (solo testo + link verificati)
-import time, random, requests
+import os, time, random, threading, requests
+from flask import Flask
 
-TOKEN = "8342129776:AAEz_oC8m3WJedV0VLhE82arwmUuW_9uwXg"
-CHAT_ID = "@wtfgadgets"
+# ====== ENV ======
+TOKEN = os.getenv("TELEGRAM_TOKEN") or os.getenv("BOT_TOKEN") or ""
+CHAT_ID = os.getenv("CHAT_ID", "@wtfgadgets")
+ASSOCIATE_TAG = os.getenv("ASSOCIATE_TAG", "weirdfindsdai-20")
 
-# per test: 60 sec; poi rimetti 3*60*60
-POST_EVERY_SECONDS = 60
+# Intervallo (default 3 ore). Impongo minimo 30 min per sicurezza.
+POST_EVERY_SECONDS = int(os.getenv("POST_INTERVAL_SEC", "10800"))
+if POST_EVERY_SECONDS < 1800:
+    POST_EVERY_SECONDS = 1800  # 30 minuti minimo
 
-# aggiungeremo il tuo tracking ID quando attivi Amazon Associates
-AMAZON_TAG = "YOURTAG-21"  # es: weirdbot-21
-
+# ====== PRODOTTI DI ESEMPIO (sostituisci con i tuoi link reali .com) ======
 PRODUCTS = [
-    {"title": "OTOTO Nessie Soup Ladle — the standing ladle 🦕",
-     "url": "https://www.amazon.com/OTOTO-Vegetable-Strainer-Strainers-Dishwasher/dp/B0114WKC46"},
-    {"title": "OTOTO Spaghetti Monster Colander 🍝",
-     "url": "https://www.amazon.com/Spaghetti-Monster-Colander-Strainer-OTOTO/dp/B076676PS9"},
-    {"title": "OTOTO Crabby Clip-On Strainer 🦀",
-     "url": "https://www.amazon.com/OTOTO-OT063-Crabby-Clip-Strainer/dp/B0CJCPFMRZ"},
-    {"title": "The Screaming Goat (book + screaming figure) 🐐",
-     "url": "https://www.amazon.com/The-Screaming-Goat-Book-Figure/dp/0762459816"},
-    {"title": "Mini Wacky Waving Inflatable Tube Guy (desktop) 🕺",
-     "url": "https://www.amazon.com/Mealivos-Wacky-Waving-Inflatable-Blower/dp/B0DQNK98M7"},
-    {"title": "Rubber Chicken Purse — The Hen Bag 🐔👜",
-     "url": "https://www.amazon.com/Rubber-Chicken-Purse-Hen-Handbag/dp/B001G8N95I"},
-    {"title": "Banana Duck Statue — whimsical yard art 🍌🦆",
-     "url": "https://www.amazon.com/Banana-Sculpture-Whimsical-Creative-Outdoor/dp/B092QP28M3"},
-    {"title": "Frozen Magic Squeeze Slushy Cup 🧊",
-     "url": "https://www.amazon.com/Color-Land-Trending-Homemade-350ML/dp/B09NQ7P4CV"},
-    {"title": "AMERFIST Flying Orb Ball — boomerang hover ball ✨",
-     "url": "https://www.amazon.com/AMERFIST-Boomerang-Galactic-Spinner-Outdoor/dp/B08QTP3MLT"},
-    {"title": "Paladone Henry Hoover Desk Mini Vacuum 🧹",
-     "url": "https://www.amazon.com/Henry-Hetty-Desktop-Vacuum-Cleaner/dp/B00KRG8BPS"},
-    {"title": "Ladybug Mini Desktop Vacuum 🐞",
-     "url": "https://www.amazon.com/Honbay-Ladybug-Portable-Cleaner-Sweeper/dp/B01MU3HSK2"},
-    {"title": "OTOTO Pinot — Parrot Corkscrew 🦜🍷",
-     "url": "https://www.amazon.com/OTOTO-OT955-Pinot/dp/B09VPLLFS2"},
+    {"title":"OTOTO Nessie Soup Ladle — the standing ladle 🦕","url":"https://www.amazon.com/dp/B0114WKC46"},
+    {"title":"Spaghetti Monster Colander 🍝","url":"https://www.amazon.com/dp/B076676PS9"},
+    {"title":"The Screaming Goat (mini book + figure) 🐐","url":"https://www.amazon.com/dp/0762459816"},
 ]
 
 def affiliate_link(url: str) -> str:
-    if AMAZON_TAG and "tag=" not in url:
+    if ASSOCIATE_TAG and "tag=" not in url:
         sep = "&" if "?" in url else "?"
-        return f"{url}{sep}tag={AMAZON_TAG}"
+        return f"{url}{sep}tag={ASSOCIATE_TAG}"
     return url
 
 def send_text(text: str):
@@ -57,15 +38,30 @@ def post_random_product():
     link = affiliate_link(p["url"])
     caption = f"🌀 {p['title']}\n\n🛒 Buy here: {link}\n#weird #gadgets #wtf"
     res = send_text(caption)
-    if not res.get("ok"):
-        print("[ERROR]", res)
-    else:
-        print("[OK] Posted:", p["title"])
+    print("[POST]", p["title"], res)
 
-if __name__ == "__main__":
+def bot_loop():
+    # Post immediato all’avvio (se non lo vuoi, commenta la riga sotto)
+    try:
+        post_random_product()
+    except Exception as e:
+        print("[FATAL at start]", e)
+    # Loop
     while True:
         try:
+            time.sleep(POST_EVERY_SECONDS)
             post_random_product()
         except Exception as e:
-            print("[FATAL]", e)
-        time.sleep(POST_EVERY_SECONDS)
+            print("[ERROR loop]", e)
+
+# ====== MINI WEB SERVER per Render ======
+app = Flask(__name__)
+
+@app.get("/")
+def health():
+    return "OK"
+
+if __name__ == "__main__":
+    threading.Thread(target=bot_loop, daemon=True).start()
+    port = int(os.getenv("PORT", "10000"))
+    app.run(host="0.0.0.0", port=port)
