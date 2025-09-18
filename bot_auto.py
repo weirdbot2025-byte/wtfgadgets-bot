@@ -1,67 +1,84 @@
-import os, time, random, threading, requests
-from flask import Flask
+import time
+import random
+import logging
+from telegram import Bot
 
-# ====== ENV ======
-TOKEN = os.getenv("TELEGRAM_TOKEN") or os.getenv("BOT_TOKEN") or ""
-CHAT_ID = os.getenv("CHAT_ID", "@wtfgadgets")
-ASSOCIATE_TAG = os.getenv("ASSOCIATE_TAG", "weirdfindsdai-20")
+# 🔑 Inserisci qui il tuo TOKEN BOT TELEGRAM
+TELEGRAM_TOKEN = "INSERISCI_IL_TUO_TOKEN"
+CHAT_ID = "INSERISCI_CHAT_ID"
 
-# Intervallo (default 3 ore). Impongo minimo 30 min per sicurezza.
-POST_EVERY_SECONDS = int(os.getenv("POST_INTERVAL_SEC", "10800"))
-if POST_EVERY_SECONDS < 1800:
-    POST_EVERY_SECONDS = 1800  # 30 minuti minimo
+# Attiva logging per debug
+logging.basicConfig(level=logging.INFO)
 
-# ====== PRODOTTI DI ESEMPIO (sostituisci con i tuoi link reali .com) ======
+bot = Bot(token=TELEGRAM_TOKEN)
+
+# Lista prodotti (i tuoi link con titoli e immagini)
 PRODUCTS = [
-    {"title":"OTOTO Nessie Soup Ladle — the standing ladle 🦕","url":"https://www.amazon.com/dp/B0114WKC46"},
-    {"title":"Spaghetti Monster Colander 🍝","url":"https://www.amazon.com/dp/B076676PS9"},
-    {"title":"The Screaming Goat (mini book + figure) 🐐","url":"https://www.amazon.com/dp/0762459816"},
+    {
+        "title": "Mini Proiettore Portatile 🎥 — cinema in tasca ovunque tu sia",
+        "url": "https://amzn.to/47KBkFn",
+        "image": "https://m.media-amazon.com/images/I/61cIvItG3VL._AC_SL1500_.jpg"
+    },
+    {
+        "title": "Tazza autorimescolante ⚡ — addio cucchiaino!",
+        "url": "https://amzn.to/3Iuis30",
+        "image": "https://m.media-amazon.com/images/I/71xzYl5sXgL._AC_SL1500_.jpg"
+    },
+    {
+        "title": "Lampada Luna 🌕 — illumina la stanza come un sogno",
+        "url": "https://amzn.to/4ncyvBR",
+        "image": "https://m.media-amazon.com/images/I/61hLeuGQX7L._AC_SL1500_.jpg"
+    },
+    {
+        "title": "Piantina Bonsai Lego 🌱 — decoro zen che non muore mai",
+        "url": "https://amzn.to/4nalicM",
+        "image": "https://m.media-amazon.com/images/I/71nPg6o1FGL._AC_SL1500_.jpg"
+    },
+    {
+        "title": "Allarme anti-smarrimento 🔔 — trova subito chiavi e oggetti",
+        "url": "https://amzn.to/41YpqUE",
+        "image": "https://m.media-amazon.com/images/I/61X6rRAI6-L._AC_SL1500_.jpg"
+    },
+    {
+        "title": "Mini Frigo USB 🥤 — bibite fredde sempre a portata di mano",
+        "url": "https://amzn.to/4nvWJGQ",
+        "image": "https://m.media-amazon.com/images/I/71dZmcf5WVL._AC_SL1500_.jpg"
+    },
+    {
+        "title": "Sveglia Volante 🚁 — ti fa alzare davvero dal letto!",
+        "url": "https://amzn.to/4n5E8Bz",
+        "image": "https://m.media-amazon.com/images/I/71hXwHFFZVL._AC_SL1500_.jpg"
+    },
+    {
+        "title": "Scrivania pieghevole 💻 — smart working ovunque",
+        "url": "https://amzn.to/48sHMRs",
+        "image": "https://m.media-amazon.com/images/I/81+QjF7p4JL._AC_SL1500_.jpg"
+    },
+    {
+        "title": "Lampadina con altoparlante Bluetooth 🔊 — luce + musica",
+        "url": "https://amzn.to/46JowOk",
+        "image": "https://m.media-amazon.com/images/I/71Fqlix3RFL._AC_SL1500_.jpg"
+    },
+    {
+        "title": "Tappetino mouse RGB 🌈 — scrivania che si illumina",
+        "url": "https://amzn.to/468RlDM",
+        "image": "https://m.media-amazon.com/images/I/81HTjEAwLqL._AC_SL1500_.jpg"
+    },
 ]
 
-def affiliate_link(url: str) -> str:
-    if ASSOCIATE_TAG and "tag=" not in url:
-        sep = "&" if "?" in url else "?"
-        return f"{url}{sep}tag={ASSOCIATE_TAG}"
-    return url
-
-def send_text(text: str):
-    api = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    payload = {"chat_id": CHAT_ID, "text": text, "disable_web_page_preview": False}
-    r = requests.post(api, data=payload, timeout=30)
-    try:
-        return r.json()
-    except Exception:
-        return {"ok": False, "error": r.text}
-
-def post_random_product():
-    p = random.choice(PRODUCTS)
-    link = affiliate_link(p["url"])
-    caption = f"🌀 {p['title']}\n\n🛒 Buy here: {link}\n#weird #gadgets #wtf"
-    res = send_text(caption)
-    print("[POST]", p["title"], res)
-
-def bot_loop():
-    # Post immediato all’avvio (se non lo vuoi, commenta la riga sotto)
-    try:
-        post_random_product()
-    except Exception as e:
-        print("[FATAL at start]", e)
-    # Loop
+def main():
     while True:
+        product = random.choice(PRODUCTS)  # sceglie un prodotto a caso
+        text = f"{product['title']}\n👉 {product['url']}"
+        
         try:
-            time.sleep(POST_EVERY_SECONDS)
-            post_random_product()
+            bot.send_photo(chat_id=CHAT_ID, photo=product['image'], caption=text)
+            logging.info(f"✅ Pubblicato: {product['title']}")
         except Exception as e:
-            print("[ERROR loop]", e)
+            logging.error(f"Errore: {e}")
 
-# ====== MINI WEB SERVER per Render ======
-app = Flask(__name__)
-
-@app.get("/")
-def health():
-    return "OK"
+        time.sleep(3600)  # aspetta 1 ora prima di pubblicare di nuovo
 
 if __name__ == "__main__":
-    threading.Thread(target=bot_loop, daemon=True).start()
-    port = int(os.getenv("PORT", "10000"))
-    app.run(host="0.0.0.0", port=port)
+    main()
+
